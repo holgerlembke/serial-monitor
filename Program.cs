@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System.ComponentModel.Design.Serialization;
+using System.IO;
 using System.IO.Ports;
 using System.Net.Sockets;
 using System.Text;
@@ -85,8 +86,15 @@ namespace serial_monitor
         int inbytes = 0;
         int outbytes = 0;
 
+        public enum reason { none, serialdeath, tcpdeath };
+
+        // signal: ich bin tod
         bool imdead = false;
         public bool ImDead { get { return imdead = false; } }
+        // signal: todesursache
+        private reason inquest = reason.none;
+        public reason Inquest { get { return inquest; } }
+        // signal: ich soll sterben
         private bool die = false;
         public bool Die { set { die = value; } }
 
@@ -103,6 +111,9 @@ namespace serial_monitor
             logline("SP:job starts.");
             try
             {
+                const int sleeptime = 10;
+                int slept = 0;
+
                 tcpstream = tcpPort.GetStream();
 
                 // Worker-Thread-Schleife
@@ -114,9 +125,31 @@ namespace serial_monitor
                         int dataread = tcpstream.Read(data, 0, data.Length);
                         outbytes += dataread;
                         serialPort.Write(data, 0, dataread);
-                    } else
+                    }
+                    else
                     {
-                        Thread.Sleep(10); // this eats the wait time, so no load
+                        Thread.Sleep(sleeptime); // this eats the wait time, so no load
+                        slept += sleeptime;
+                        // ist der serielle Port noch da?
+                        if (slept >= 1000)
+                        {
+                            slept = 0;
+                            // seems funny, but there is no reliable way to see a port disappear...
+                            bool stillhasport = false;
+                            foreach (string port in SerialPort.GetPortNames())
+                            {
+                                if (port.ToUpper() == serportdata.PortName)
+                                {
+                                    stillhasport = true;
+                                    break;
+                                }
+                            }
+                            if (!stillhasport)
+                            {
+                                inquest = reason.serialdeath;
+                                die = true;
+                            }
+                        }
                     }
                 }
             }
@@ -125,6 +158,9 @@ namespace serial_monitor
                 logline("EP:" + e.ToString());
                 return;
             }
+            // Close
+            tcpstream.Close(); 
+            tcpPort.Close();
             // clean up.
             tcpstream = null;
             tcpPort = null;
@@ -152,6 +188,7 @@ namespace serial_monitor
                 serialPort = null;
                 return false;
             }
+            serportdata.PortName = serportdata.PortName.ToUpper();
             return true;
         }
         bool OpenTcpPort()
@@ -159,6 +196,12 @@ namespace serial_monitor
             try
             {
                 tcpPort = new(ip, Int32.Parse(port));
+            }
+            catch (SocketException e)
+            {
+                logline($"EP: socket exception {e.SocketErrorCode} " + e.ToString());
+                tcpPort = null;
+                return false;
             }
             catch (Exception e)
             {
@@ -355,7 +398,7 @@ namespace serial_monitor
                 {
                     using (Stream stdout = Console.OpenStandardOutput())
                     {
-                        byte[] buffer = new byte[1000];  // Use whatever size you want
+                        byte[] buffer = new byte[1000];
                         string buffers = "";
                         do
                         {
@@ -453,7 +496,13 @@ namespace serial_monitor
                                                 // Port nicht auf
                                                 if (res == 1)
                                                 {
-                                                    byte[] answer = Encoding.ASCII.GetBytes(openanswerunknownserialport.Replace("%pp%", serialportdata.PortName));
+                                                    byte[] answer = Encoding.ASCII.GetBytes(openanswerunknownserialport.Replace("%pp%", cmd[2]));
+                                                    stdout.Write(answer, 0, answer.Length);
+                                                }
+                                                else
+                                                if (res == 2)
+                                                {
+                                                    byte[] answer = Encoding.ASCII.GetBytes(openanswerunknownserialport.Replace("%pp%", cmd[1]));
                                                     stdout.Write(answer, 0, answer.Length);
                                                 }
 
@@ -484,9 +533,10 @@ namespace serial_monitor
                                             } while (!pumpe.ImDead);
                                             pumpe = null;
                                         }
-                                        logline("RR:pump is dead");
                                         byte[] answer = Encoding.ASCII.GetBytes(closeanswer);
                                         stdout.Write(answer, 0, answer.Length);
+
+                                        logline("RR:pump is dead");
                                     }
                                     else
                                     if (msg.StartsWith("QUIT"))
