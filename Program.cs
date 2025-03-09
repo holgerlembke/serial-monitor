@@ -114,6 +114,9 @@ namespace serial_monitor
                         int dataread = tcpstream.Read(data, 0, data.Length);
                         outbytes += dataread;
                         serialPort.Write(data, 0, dataread);
+                    } else
+                    {
+                        Thread.Sleep(10); // this eats the wait time, so no load
                     }
                 }
             }

@@ -6,7 +6,7 @@
     <RootNamespace>serial_monitor</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <AssemblyVersion>1.2025.68.98</AssemblyVersion>
+    <AssemblyVersion>1.2025.68.99</AssemblyVersion>
   </PropertyGroup>
 
   <ItemGroup>
