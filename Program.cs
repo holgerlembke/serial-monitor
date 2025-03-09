@@ -3,8 +3,6 @@ using System.IO.Ports;
 using System.Net.Sockets;
 using System.Text;
 
-// C:\Users\holger2\AppData\Local\Arduino15\packages\builtin\tools\serial-monitor\0.14.1
-
 namespace serial_monitor
 {
     internal class SimpleLogger
