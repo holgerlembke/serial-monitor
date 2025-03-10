@@ -8,7 +8,7 @@ namespace serial_monitor
         static void Main(string[] args)
         {
             SerialMonitor sm = new();
-            sm.job();
+            sm.betterjob();
         }
     }
 }

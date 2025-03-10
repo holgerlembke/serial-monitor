@@ -1,14 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
+using static serial_monitor.TCP2SERPumpe;
 
 namespace serial_monitor
 {
     internal partial class SerialMonitor : LogingBase
     {
-        public SerialMonitor() : base(@"\logmonitor.txt") { }
+        public SerialMonitor() : base(@"logmonitor.txt") { }
 
         SerialPortData serialportdata = null;
         TCP2SERPumpe pumpe = null;
@@ -93,8 +95,7 @@ namespace serial_monitor
                     {
                         pumpe = new(tcps[0], tcps[1], serialportdata);
                         logline("RR:pumpe starts");
-                        int res = pumpe.start();
-                        if (res == 0)
+                        if (pumpe.start())
                         {
                             logline("RR:pumpe runs");
 
@@ -104,19 +105,19 @@ namespace serial_monitor
                         else
                         {
                             // Port nicht auf
-                            if (res == 1)
+                            if (pumpe.Inquest == Reason.serialfail)
                             {
                                 byte[] answer = Encoding.ASCII.GetBytes(openanswerunknownserialport.Replace("%pp%", cmd[2]));
                                 stdout.Write(answer, 0, answer.Length);
                             }
                             else
-                            if (res == 2)
+                            if (pumpe.Inquest == Reason.tcpfail)
                             {
                                 byte[] answer = Encoding.ASCII.GetBytes(openanswerunknownserialport.Replace("%pp%", cmd[1]));
                                 stdout.Write(answer, 0, answer.Length);
                             }
 
-                            logline("RR:error " + res);
+                            logline("RR:error " + pumpe.Inquest);
                         }
                     }
                     else
@@ -154,7 +155,8 @@ namespace serial_monitor
                     byte[] answer = Encoding.ASCII.GetBytes(quitanswer);
                     stdout.Write(answer, 0, answer.Length);
 
-                    logline("Quit");
+                    // logline("Quit");
+                    Thread.Sleep(10); // wait to settle down
                     Environment.Exit(0); // and dead
                 }
                 else
@@ -192,6 +194,91 @@ namespace serial_monitor
                 // eat it.
             }
 
+            logline("RR:End");
+        }
+
+        const int STD_INPUT_HANDLE = -10;
+        const int STD_OUTPUT_HANDLE = -11;
+        const int STD_ERROR_HANDLE = -12;
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        static extern IntPtr GetStdHandle(int nStdHandle);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        static extern bool CancelIoEx(IntPtr handle, IntPtr lpOverlapped);
+
+        bool StdinReaderPumpeDead = false;
+        void StdinReaderPumpe()
+        {
+            // nix mit töten so einfach, der steht wahrscheinlich in einem dauer-stdin.read()
+            byte[] buffer = new byte[1000];
+            string buffers = "";
+            do
+            {
+                int bytes = stdin.Read(buffer, 0, buffer.Length);
+                if ((bytes > 0) || (buffers != ""))
+                {
+                    buffers += Encoding.UTF8.GetString(buffer, 0, bytes);
+                    bufferhandler(ref buffers);
+                }
+            } while (!StdinReaderPumpeDead);
+        }
+
+        /*
+            reader.ReadLine blockiert, daher braucht es eine andere strategie, 
+            um die pumpe zu überwachen
+
+            bufferhandler() läuft jedesmal, wenn via stdin irgendwelche befehle kommen
+        */
+        public void betterjob()
+        {
+            try
+            {
+                using (stdout = Console.OpenStandardOutput())
+                {
+                    using (stdin = Console.OpenStandardInput())
+                    {
+                        Thread worker = new(StdinReaderPumpe);
+                        worker.Start();
+
+                        do
+                        {
+                            // Check the state
+                            if (pumpe != null)
+                            {
+                                if (pumpe.ImDead)
+                                {
+                                    if (pumpe.Inquest == Reason.serialdeath)
+                                    {
+                                        byte[] answer = Encoding.ASCII.GetBytes(openanswerserialportgone);
+                                        stdout.Write(answer, 0, answer.Length);
+                                    } else
+                                    if (pumpe.Inquest == Reason.tcpdeath)
+                                    {
+                                        byte[] answer = Encoding.ASCII.GetBytes(openanswertcpgone);
+                                        stdout.Write(answer, 0, answer.Length);
+                                    }
+
+                                    // Cancel stdin bzw. den Wait auf Daten
+                                    StdinReaderPumpeDead = true;
+                                    var handle = GetStdHandle(STD_INPUT_HANDLE);
+                                    CancelIoEx(handle, IntPtr.Zero);
+
+                                    logline("RR:Pumpe died");
+                                    break;
+                                }
+                            }
+                            // 10 ms?
+                            Thread.Sleep(10);
+                        } while (true);
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                logline("EM:" + e.ToString());
+                // eat it.
+            }
             logline("RR:End");
         }
     }

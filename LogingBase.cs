@@ -8,7 +8,8 @@ namespace serial_monitor
 
         public LogingBase(string logfilename)
         {
-            path = Path.GetDirectoryName(System.Reflection.Assembly.GetEntryAssembly().Location);
+            path = Path.GetDirectoryName(System.Reflection.Assembly.GetEntryAssembly().Location)+
+                   Path.DirectorySeparatorChar;
 
             this.logfilename = logfilename;
             // logline("SL:Start");
@@ -16,6 +17,7 @@ namespace serial_monitor
 
         void logit(string line)
         {
+// no debug files on release
 #if !DEBUG
             return;
 #endif

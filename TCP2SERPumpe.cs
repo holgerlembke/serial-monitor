@@ -24,13 +24,14 @@ namespace serial_monitor
     internal class TCP2SERPumpe : LogingBase
     {
         public TCP2SERPumpe(string ip, string port,
-                            SerialPortData serportdata) : base(@"\logpumpe.txt")
+                            SerialPortData serportdata) : base(@"logpumpe.txt")
         {
             this.ip = ip;
             this.port = port;
             this.serportdata = serportdata;
         }
-
+        const int serprotocolmax = 5 * 1024;
+        string serprotocol = "";
         string ip;
         string port;
         SerialPortData serportdata;
@@ -46,14 +47,14 @@ namespace serial_monitor
         int inbytes = 0;
         int outbytes = 0;
 
-        public enum reason { none, serialdeath, tcpdeath };
+        public enum Reason { none, serialdeath, tcpdeath, serialfail, tcpfail };
 
         // signal: ich bin tod
         bool imdead = false;
         public bool ImDead { get { return imdead = false; } }
         // signal: todesursache
-        private reason inquest = reason.none;
-        public reason Inquest { get { return inquest; } }
+        private Reason inquest = Reason.none;
+        public Reason Inquest { get { return inquest; } }
         // signal: ich soll sterben
         private bool die = false;
         public bool Die { set { die = value; } }
@@ -65,6 +66,13 @@ namespace serial_monitor
             inbytes += dataread;
 
             tcpstream.Write(data, 0, dataread);
+
+            // merken
+            if (serprotocol.Length > serprotocolmax)
+            {
+                serprotocol = serprotocol.Remove(0, serprotocol.Length - serprotocolmax);
+            }
+            serprotocol += System.Text.Encoding.Default.GetString(data);
         }
         void job()
         {
@@ -107,7 +115,7 @@ namespace serial_monitor
                             }
                             if (!stillhasport)
                             {
-                                inquest = reason.serialdeath;
+                                inquest = Reason.serialdeath;
                                 die = true;
                             }
                         }
@@ -161,7 +169,7 @@ namespace serial_monitor
             catch (SocketException e)
             {
                 logline($"EP: socket exception {e.SocketErrorCode} " + e.ToString());
-                inquest = reason.tcpdeath;
+                inquest = Reason.tcpdeath;
                 tcpPort = null;
                 return false;
             }
@@ -175,23 +183,25 @@ namespace serial_monitor
             return true;
         }
 
-        public int start()
+        public bool start()
         {
             logline("SP:Start");
             if (!OpenSerialPort())
             {
                 logline("SP:Failed to open serial port.");
-                return 1;
+                inquest = Reason.serialfail;
+                return false;
             }
             if (!OpenTcpPort())
             {
                 logline("SP:Failed to open tcp port.");
-                return 2;
+                inquest = Reason.tcpfail;
+                return false;
             }
             Thread worker = new(job);
             worker.Start();
 
-            return 0;
+            return true;
         }
     }
 }

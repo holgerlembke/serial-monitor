@@ -6,7 +6,7 @@
     <RootNamespace>serial_monitor</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <AssemblyVersion>1.2025.68.116</AssemblyVersion>
+    <AssemblyVersion>1.2025.69.132</AssemblyVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -14,4 +14,7 @@
     <PackageReference Include="System.IO.Ports" Version="8.0.0" />
   </ItemGroup>
 
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="if $(ConfigurationName) == Release (&#xD;&#xA;  call &quot;$(SolutionDir)postbuild.cmd&quot; &quot;$(SolutionDir)&quot;&#xD;&#xA;)&#xD;&#xA;" />
+  </Target>
 </Project>
