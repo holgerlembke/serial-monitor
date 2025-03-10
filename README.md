@@ -24,7 +24,7 @@ I advice to keep a copy of the old serial-monitor.exe. Better safe then sorry.
 
 * unpack the release files
 
-Just right click, extract here. Do not extract into a sub folder, you might move the files 
+Just right click, extract here. Do not extract into a sub folder, you might need to move the files 
 to its correct location.
 
 In the end there should be a bunch of dll's, a serial-monitor.exe, a serial-monitor.dll and a 
