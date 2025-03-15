@@ -144,7 +144,7 @@ namespace serial_monitor
             """;
 
         // %pp% is unknown command
-        string Idontkknowwhatanswer = """
+        string Idontknowwhatanswer = """
             {
               "eventType": "command_error",
               "error": true,

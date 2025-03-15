@@ -14,11 +14,13 @@ namespace serial_monitor
 
     internal class SerialPortData
     {
-        public string PortName;
-        public string BaudRate;
-        public string DataBits;
-        public string StopBits;
-        public string Parity;
+        public string PortName = "";
+        public string BaudRate = "";
+        public string DataBits = "";
+        public string StopBits = "";
+        public string Parity = "";
+        public string Rts = "";
+        public string Dtr = "";
     }
 
     internal class TCP2SERPumpe : LogingBase
@@ -29,12 +31,20 @@ namespace serial_monitor
             this.ip = ip;
             this.port = port;
             this.serportdata = serportdata;
+
+            exceptionfilename =
+              Path.GetDirectoryName(System.Reflection.Assembly.GetEntryAssembly().Location) +
+              Path.DirectorySeparatorChar +
+              @"exception.txt";
         }
+
+        string exceptionfilename;
         const int serprotocolmax = 5 * 1024;
         string serprotocol = "";
         string ip;
         string port;
         SerialPortData serportdata;
+        ExceptionScanner exceptionscanner = new();
         /*
           damit SerialPort klappt, muss 
            -- die System.IO.Port 8.x mit nuget hinzugefügt werden
@@ -51,19 +61,23 @@ namespace serial_monitor
 
         // signal: ich bin tod
         bool imdead = false;
-        public bool ImDead { get { return imdead = false; } }
+        public bool ImDead { get { return imdead; } }
         // signal: todesursache
         private Reason inquest = Reason.none;
         public Reason Inquest { get { return inquest; } }
         // signal: ich soll sterben
         private bool die = false;
         public bool Die { set { die = value; } }
+        // Überwachungszähler USB-Port
+        int slept = 0;
 
         void serialPortDataRecieved(object sender, SerialDataReceivedEventArgs e)
         {
             byte[] data = new byte[serialPort.BytesToRead];
             int dataread = serialPort.Read(data, 0, data.Length);
             inbytes += dataread;
+            // gerade was empfangen, also nix zu überwachen
+            slept = 0;
 
             tcpstream.Write(data, 0, dataread);
 
@@ -73,16 +87,29 @@ namespace serial_monitor
                 serprotocol = serprotocol.Remove(0, serprotocol.Length - serprotocolmax);
             }
             serprotocol += System.Text.Encoding.Default.GetString(data);
+
+            // Wenn Exception gefunden, dann den Mitschnitt einfach löschen
+            string exceptiontext = exceptionscanner.checkAndSeparateExceptionText(serprotocol);
+            if (exceptiontext != "")
+            {
+                File.WriteAllText(exceptionfilename, exceptiontext);
+                serprotocol = "";
+                logline("SP:exception detected.");
+            }
         }
         void job()
         {
+            inbytes = 0;
+            outbytes = 0;
             logline("SP:job starts.");
             try
             {
                 const int sleeptime = 10;
-                int slept = 0;
 
                 tcpstream = tcpPort.GetStream();
+
+                // now we can 
+                serialPort.DataReceived += new SerialDataReceivedEventHandler(serialPortDataRecieved);
 
                 // Worker-Thread-Schleife
                 while ((!die) && (tcpPort.Connected))
@@ -103,7 +130,7 @@ namespace serial_monitor
                         {
                             slept = 0;
                             // seems funny, but there is no reliable way to see a port disappear
-                            // other than going deep into the hardware signaling rabithole
+                            // other than going deep into the hardware signaling rabbithole
                             bool stillhasport = false;
                             foreach (string port in SerialPort.GetPortNames())
                             {
@@ -122,14 +149,19 @@ namespace serial_monitor
                     }
                 }
             }
+            catch (SocketException e)
+            {
+                logline("EP:" + e.ToString());
+                inquest = Reason.tcpdeath;
+            }
             catch (Exception e)
             {
                 logline("EP:" + e.ToString());
-                return;
             }
             // Close
             tcpstream.Close();
             tcpPort.Close();
+            serialPort.Close();
             // clean up.
             tcpstream = null;
             tcpPort = null;
@@ -148,8 +180,9 @@ namespace serial_monitor
                 serialPort.DataBits = Convert.ToInt32(serportdata.DataBits);
                 serialPort.StopBits = (StopBits)Enum.Parse(typeof(StopBits), serportdata.StopBits);
                 serialPort.Parity = (Parity)Enum.Parse(typeof(ShortParity), serportdata.Parity);
+                serialPort.DtrEnable = serportdata.Dtr.ToLower() != "off";
+                serialPort.RtsEnable = serportdata.Dtr.ToLower() != "off";
                 serialPort.Open(); // Open port.
-                serialPort.DataReceived += new SerialDataReceivedEventHandler(serialPortDataRecieved);
             }
             catch (Exception e)
             {
@@ -169,7 +202,6 @@ namespace serial_monitor
             catch (SocketException e)
             {
                 logline($"EP: socket exception {e.SocketErrorCode} " + e.ToString());
-                inquest = Reason.tcpdeath;
                 tcpPort = null;
                 return false;
             }

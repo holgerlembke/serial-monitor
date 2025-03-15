@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO.Ports;
 using System.Linq;
+using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
@@ -16,6 +19,7 @@ namespace serial_monitor
         TCP2SERPumpe pumpe = null;
         Stream stdin = null;
         Stream stdout = null;
+        int pid;
 
         void bufferhandler(ref string buffers)
         {
@@ -66,6 +70,16 @@ namespace serial_monitor
                         serialportdata.BaudRate = msg.Substring(19);
                     }
                     else
+                    if (msg.StartsWith("CONFIGURE dtr "))
+                    {
+                        serialportdata.Dtr = msg.Substring(14);
+                    }
+                    else
+                    if (msg.StartsWith("CONFIGURE rts "))
+                    {
+                        serialportdata.Rts = msg.Substring(14);
+                    }
+                    else
                     {
                         // ignorieren
                         logline("RR:" + msg);
@@ -89,10 +103,13 @@ namespace serial_monitor
                     logline("SP:" + serialportdata.DataBits);
                     logline("SP:" + serialportdata.Parity);
                     logline("SP:" + serialportdata.StopBits);
+                    logline("SP:" + serialportdata.Dtr);
+                    logline("SP:" + serialportdata.Rts);
                     /**/
 
                     if ((pumpe == null) && (serialportdata != null))
                     {
+                        logline("RR:pumpe init");
                         pumpe = new(tcps[0], tcps[1], serialportdata);
                         logline("RR:pumpe starts");
                         if (pumpe.start())
@@ -143,6 +160,7 @@ namespace serial_monitor
                             Thread.Sleep(100);
                         } while (!pumpe.ImDead);
                         pumpe = null;
+                        serialportdata = null;
                     }
                     byte[] answer = Encoding.ASCII.GetBytes(closeanswer);
                     stdout.Write(answer, 0, answer.Length);
@@ -155,7 +173,7 @@ namespace serial_monitor
                     byte[] answer = Encoding.ASCII.GetBytes(quitanswer);
                     stdout.Write(answer, 0, answer.Length);
 
-                    // logline("Quit");
+                    logline($"RR:Quit {pid}");
                     Thread.Sleep(10); // wait to settle down
                     Environment.Exit(0); // and dead
                 }
@@ -197,6 +215,14 @@ namespace serial_monitor
             logline("RR:End");
         }
 
+        // does this speed up the entire process? I don't think so.
+        void AssemblyPreloader()
+        {
+            GC.KeepAlive(typeof(SerialPort));
+            GC.KeepAlive(typeof(TcpClient));
+            GC.KeepAlive(typeof(NetworkStream));
+        }
+
         const int STD_INPUT_HANDLE = -10;
         const int STD_OUTPUT_HANDLE = -11;
         const int STD_ERROR_HANDLE = -12;
@@ -232,8 +258,16 @@ namespace serial_monitor
         */
         public void betterjob()
         {
+            pid = Process.GetCurrentProcess().Id;
             try
             {
+                /* oder in den ersten CONFIGURE Befehl? Lohnt es sich überhaupt?
+                logline("RR:Preload");
+                Thread preloader = new(AssemblyPreloader);
+                preloader.Start();
+                */
+
+                logline($"RR:Start {pid}");
                 using (stdout = Console.OpenStandardOutput())
                 {
                     using (stdin = Console.OpenStandardInput())
@@ -252,7 +286,8 @@ namespace serial_monitor
                                     {
                                         byte[] answer = Encoding.ASCII.GetBytes(openanswerserialportgone);
                                         stdout.Write(answer, 0, answer.Length);
-                                    } else
+                                    }
+                                    else
                                     if (pumpe.Inquest == Reason.tcpdeath)
                                     {
                                         byte[] answer = Encoding.ASCII.GetBytes(openanswertcpgone);
@@ -279,8 +314,7 @@ namespace serial_monitor
                 logline("EM:" + e.ToString());
                 // eat it.
             }
-            logline("RR:End");
+            logline($"RR:End {pid}");
         }
     }
-
 }
