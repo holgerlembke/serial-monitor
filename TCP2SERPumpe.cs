@@ -31,20 +31,14 @@ namespace serial_monitor
             this.ip = ip;
             this.port = port;
             this.serportdata = serportdata;
-
-            exceptionfilename =
-              Path.GetDirectoryName(System.Reflection.Assembly.GetEntryAssembly().Location) +
-              Path.DirectorySeparatorChar +
-              @"exception.txt";
         }
 
-        string exceptionfilename;
         const int serprotocolmax = 5 * 1024;
         string serprotocol = "";
         string ip;
         string port;
         SerialPortData serportdata;
-        ExceptionScanner exceptionscanner = new();
+        ExceptionScanner.ExceptionScanner exceptionscanner = new();
         /*
           damit SerialPort klappt, muss 
            -- die System.IO.Port 8.x mit nuget hinzugefügt werden
@@ -92,7 +86,7 @@ namespace serial_monitor
             string exceptiontext = exceptionscanner.checkAndSeparateExceptionText(serprotocol);
             if (exceptiontext != "")
             {
-                File.WriteAllText(exceptionfilename, exceptiontext);
+                File.WriteAllText(exceptionscanner.ExceptionFilename, exceptiontext);
                 serprotocol = "";
                 logline("SP:exception detected.");
             }

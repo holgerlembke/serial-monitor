@@ -1,5 +1,7 @@
 ﻿
-namespace serial_monitor
+using System.IO;
+
+namespace ExceptionScanner
 {
     class ExceptionScanner
     {
@@ -11,6 +13,25 @@ namespace serial_monitor
            Also vernünftige Anfang-Ende-Kenner, die eineindeutig zu identifizieren sind.
            Alles Neuland. 2025
         */
+
+        string exceptionfilename = "";
+        public string ExceptionFilename
+        {
+            get
+            {
+                if (exceptionfilename=="")
+                {
+                    exceptionfilename = Path.GetTempPath() +
+                    Path.DirectorySeparatorChar +
+                    @"serial-monitor" +
+                    Path.DirectorySeparatorChar;
+                    Directory.CreateDirectory(exceptionfilename);
+
+                    exceptionfilename += @"exception.txt";
+                }
+                return exceptionfilename;
+            }
+        }
 
         public string checkAndSeparateExceptionText(string monitor)
         {
@@ -43,7 +64,7 @@ namespace serial_monitor
                 i = monitor.LastIndexOf(exceptionseperatorEsp32);
                 if (i > -1)
                 {   // vorne wegschneiden
-                    monitor = monitor.Substring(i+ exceptionseperatorEsp32.Length);
+                    monitor = monitor.Substring(i + exceptionseperatorEsp32.Length);
 
                     // Ende-Kennung
                     i = monitor.IndexOf(exceptionseperatorEsp32end);

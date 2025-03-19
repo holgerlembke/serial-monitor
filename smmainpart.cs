@@ -1,13 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO.Ports;
-using System.Linq;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Text;
-using System.Threading.Tasks;
-using static serial_monitor.TCP2SERPumpe;
 
 namespace serial_monitor
 {
@@ -122,13 +117,13 @@ namespace serial_monitor
                         else
                         {
                             // Port nicht auf
-                            if (pumpe.Inquest == Reason.serialfail)
+                            if (pumpe.Inquest == TCP2SERPumpe.Reason.serialfail)
                             {
                                 byte[] answer = Encoding.ASCII.GetBytes(openanswerunknownserialport.Replace("%pp%", cmd[2]));
                                 stdout.Write(answer, 0, answer.Length);
                             }
                             else
-                            if (pumpe.Inquest == Reason.tcpfail)
+                            if (pumpe.Inquest == TCP2SERPumpe.Reason.tcpfail)
                             {
                                 byte[] answer = Encoding.ASCII.GetBytes(openanswerunknownserialport.Replace("%pp%", cmd[1]));
                                 stdout.Write(answer, 0, answer.Length);
@@ -282,13 +277,13 @@ namespace serial_monitor
                             {
                                 if (pumpe.ImDead)
                                 {
-                                    if (pumpe.Inquest == Reason.serialdeath)
+                                    if (pumpe.Inquest == TCP2SERPumpe.Reason.serialdeath)
                                     {
                                         byte[] answer = Encoding.ASCII.GetBytes(openanswerserialportgone);
                                         stdout.Write(answer, 0, answer.Length);
                                     }
                                     else
-                                    if (pumpe.Inquest == Reason.tcpdeath)
+                                    if (pumpe.Inquest == TCP2SERPumpe.Reason.tcpdeath)
                                     {
                                         byte[] answer = Encoding.ASCII.GetBytes(openanswertcpgone);
                                         stdout.Write(answer, 0, answer.Length);
