@@ -30,3 +30,10 @@ to its correct location.
 In the end there should be a bunch of dll's, a serial-monitor.exe, a serial-monitor.dll and a 
 platform support folder "runtimes" with lots of stuff in it.
 
+## New Arduino Release
+
+You need to find the new folder and copy the files from old location to new location.
+
+## Storage
+
+Exception files are stored at %temp%\serial-monitor
